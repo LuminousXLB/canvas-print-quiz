@@ -78,6 +78,15 @@ def set_device_metrics_override(driver, width, height, scale):
     )
 
 
+def debug_decorator(func):
+    def wrapper(*args, **kwargs):
+        log.debug(f"Calling {func.__name__} with args={args} and kwargs={kwargs}")
+        return func(*args, **kwargs)
+
+    return wrapper
+
+
+@debug_decorator
 def print_to_pdf(driver, paperWidth, paperHeight):
     return b64decode(
         driver.web.execute_cdp_cmd(
@@ -98,9 +107,12 @@ def export_one_page_pdf(driver, width, height: int | tuple):
             raw = print_to_pdf(driver, width, mid)
             pgs = len(PdfReader(BytesIO(raw)).pages)
             if pgs == 1:
-                return export_one_page_pdf(driver, width, (inf, mid))
+                if inf == mid:
+                    return raw
+                else:
+                    return export_one_page_pdf(driver, width, (inf, mid))
             else:
-                return export_one_page_pdf(driver, width, (mid, sup))
+                return export_one_page_pdf(driver, width, (mid + 1, sup))
         else:
             height = inf
 
@@ -109,7 +121,7 @@ def export_one_page_pdf(driver, width, height: int | tuple):
     if pgs == 1:
         return raw
     else:
-        return export_one_page_pdf(driver, width, ((pgs - 1) * height, pgs * height))
+        return export_one_page_pdf(driver, width, ((pgs - 2) * height, pgs * height))
 
 
 def parse_args():
