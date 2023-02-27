@@ -1,7 +1,9 @@
 import argparse
+import json
 import logging
 from base64 import b64decode
 from io import BytesIO
+from pathlib import Path
 
 import questionary
 from PyPDF2 import PdfReader
@@ -32,12 +34,6 @@ class CanvasDriver:
         self.web.find_element(By.ID, "userNameInput").send_keys(username)
         self.web.find_element(By.ID, "passwordInput").send_keys(password)
         self.web.find_element(By.ID, "submitButton").click()
-
-
-def get_canvas_driver(headless=False):
-    username = questionary.text("Canvas username").ask()
-    password = questionary.password("Canvas password").ask()
-    return CanvasDriver(username, password, headless=headless)
 
 
 def get_user_from_name(driver, course_id, name):
@@ -118,19 +114,37 @@ def export_one_page_pdf(driver, width, height: int | tuple):
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("course_id", type=int)
-    parser.add_argument("quiz_id", type=int)
-    parser.add_argument("name")
+    parser.add_argument("-j", "--json", type=Path, required=False)
+    parser.add_argument("--course", dest="course_id", type=int, required=False)
+    parser.add_argument("--quiz", dest="quiz_id", type=int, required=False)
+    parser.add_argument("--name", dest="name", type=str, required=False)
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_args()
-    course_id = args.course_id
-    quiz_id = args.quiz_id
-    name = args.name
 
-    driver = get_canvas_driver(headless=True)
+    config = {}
+    if args.json:
+        config = json.loads(args.json.read_text())
+
+    course_id = config.get("course_id") or args.course_id
+    assert course_id, "Course ID is required"
+    log.info(f"Course ID: {course_id}")
+
+    quiz_id = config.get("quiz_id") or args.quiz_id
+    assert quiz_id, "Quiz ID is required"
+    log.info(f"Quiz ID: {quiz_id}")
+
+    name = config.get("name") or args.name
+    assert name, "Name is required"
+    log.info(f"Name: {name}")
+
+    username = config.get("username") or questionary.text("Canvas username").ask()
+    password = config.get("password") or questionary.password("Canvas password").ask()
+
+    driver = CanvasDriver(username, password, headless=True)
+
     user_id = get_user_from_name(driver, course_id, name)
     log.info(f"User ID: {user_id}")
 
