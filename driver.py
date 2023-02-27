@@ -140,15 +140,15 @@ if __name__ == "__main__":
     if args.json:
         config = json.loads(args.json.read_text())
 
-    course_id = config.get("course_id") or args.course_id
+    course_id =  args.course_id or config.get("course_id")
     assert course_id, "Course ID is required"
     log.info(f"Course ID: {course_id}")
 
-    quiz_id = config.get("quiz_id") or args.quiz_id
+    quiz_id =  args.quiz_id or config.get("quiz_id")
     assert quiz_id, "Quiz ID is required"
     log.info(f"Quiz ID: {quiz_id}")
 
-    name = config.get("name") or args.name
+    name =  args.name or config.get("name")
     assert name, "Name is required"
     log.info(f"Name: {name}")
 
