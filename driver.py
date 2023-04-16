@@ -1,4 +1,5 @@
 import argparse
+from string import whitespace
 import json
 import logging
 from base64 import b64decode
@@ -36,30 +37,23 @@ class CanvasDriver:
         self.web.find_element(By.ID, "submitButton").click()
 
 
-def get_user_from_name(driver, course_id, name):
-    driver.web.get(f"https://canvas.nus.edu.sg/courses/{course_id}/users")
-    WebDriverWait(driver.web, 10).until(
-        lambda drv: drv.find_element(By.LINK_TEXT, name)
-    )
-    user_link = driver.web.find_element(By.LINK_TEXT, name).get_attribute("href")
-    return user_link.split("/")[-1]
-
-
 def clean_submission_page(driver):
     driver.web.execute_script("$('#questions').removeClass()")
     selectors = [
+        "#content > div.grade-by-question-warning",
         "#content > div.quiz-nav.pagination",
         "#content > div.quizzes-speedgrader-padding",
-        "#content > div.grade-by-question-warning",
         "#content > header > h2 > a",
-        "#update_history_form > div > div.alert",
-        "#update_history_form > div > div.quiz_score",
-        "#update_history_form > div > div.quiz_duration",
-        "div.user_points",
-        "div.quiz_comment",
-        "div.answer_group",
-        "div.eesy.eesy-tab2-container",
         "#speed_update_scores_container",
+        "#update_history_form > div > div.alert",
+        "#update_history_form > div > div.quiz_duration",
+        "#update_history_form > div > div.quiz_score",
+        "div.answer_group",
+        "div.answers_wrapper",
+        "div.eesy.eesy-tab2-container",
+        "div.quiz_comment",
+        "div.user_points",
+        "span.answer_arrow",
     ]
 
     for selector in selectors:
@@ -121,7 +115,7 @@ def export_one_page_pdf(driver, width, height: int | tuple):
     if pgs == 1:
         return raw
     else:
-        return export_one_page_pdf(driver, width, ((pgs - 2) * height, pgs * height))
+        return export_one_page_pdf(driver, width, ((pgs - 3) * height, pgs * height))
 
 
 def parse_args():
@@ -129,7 +123,7 @@ def parse_args():
     parser.add_argument("-j", "--json", type=Path, required=False)
     parser.add_argument("--course", dest="course_id", type=int, required=False)
     parser.add_argument("--quiz", dest="quiz_id", type=int, required=False)
-    parser.add_argument("--name", dest="name", type=str, required=False)
+    parser.add_argument("--user", dest="user_id", type=int, required=False)
     return parser.parse_args()
 
 
@@ -140,25 +134,22 @@ if __name__ == "__main__":
     if args.json:
         config = json.loads(args.json.read_text())
 
-    course_id =  args.course_id or config.get("course_id")
+    course_id = args.course_id or config.get("course_id")
     assert course_id, "Course ID is required"
     log.info(f"Course ID: {course_id}")
 
-    quiz_id =  args.quiz_id or config.get("quiz_id")
+    quiz_id = args.quiz_id or config.get("quiz_id")
     assert quiz_id, "Quiz ID is required"
     log.info(f"Quiz ID: {quiz_id}")
 
-    name =  args.name or config.get("name")
-    assert name, "Name is required"
-    log.info(f"Name: {name}")
+    user_id = args.user_id or config.get("user_id")
+    assert user_id, "User ID is required"
+    log.info(f"User ID: {user_id}")
 
     username = config.get("username") or questionary.text("Canvas username").ask()
     password = config.get("password") or questionary.password("Canvas password").ask()
 
     driver = CanvasDriver(username, password, headless=True)
-
-    user_id = get_user_from_name(driver, course_id, name)
-    log.info(f"User ID: {user_id}")
 
     url = f"https://canvas.nus.edu.sg/courses/{course_id}/quizzes/{quiz_id}/history?headless=1&user_id={user_id}"
     log.info(f"URL: {url}")
@@ -167,6 +158,10 @@ if __name__ == "__main__":
     set_device_metrics_override(driver, 1920, 1080, 1)
 
     log.info("Exporting PDF...")
-    with open(f"{name}.pdf", "wb") as f:
+
+    outfn = Path(
+        "".join(filter(lambda c: c not in whitespace, f"{quiz_id}-{user_id:06d}.pdf"))
+    )
+    with open(outfn, "wb") as f:
         f.write(export_one_page_pdf(driver, 11, 17))
-    log.info(f"Exported to {name}.pdf")
+    log.info(f"Exported to {outfn.absolute()}")
